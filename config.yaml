@@ -1,0 +1,45 @@
+camera:
+  work_distance_mm: 800       # 相机到传送带的工作距离（待标定确认）
+  baseline_mm: 120            # 双目基线（待测量）
+  image_width: 1280
+  image_height: 720
+  # 标定后填入以下矩阵（3x3 内参矩阵，展开为列表）
+  K_left: []
+  D_left: []
+  K_right: []
+  D_right: []
+  # 立体校正映射（stereoRectify 输出，标定后生成）
+  R: []
+  T: []
+  # 相机到世界坐标系外参（标定后填入）
+  T_cam2world: []
+
+detection:
+  # HSV 绿色阈值（用 tools/hsv_tuner.py 调节后填入）
+  hsv_lower: [35, 40, 40]
+  hsv_upper: [85, 255, 255]
+  # 形态学核大小（奇数）
+  morph_kernel_size: 5
+  # 最小连通域面积（像素），过滤噪声碎片
+  min_area_px: 200
+  # 层级判断阈值：芦笋顶面高于此值视为叠压层
+  z_layer_threshold_mm: 5.0
+
+sgbm:
+  min_disparity: 0
+  num_disparities: 64        # 必须是 16 的倍数
+  block_size: 7              # 奇数，芦笋细时用小值
+  uniqueness_ratio: 10
+  speckle_window_size: 100
+  speckle_range: 32
+  disp12_max_diff: 1
+
+ble:
+  # 下位机 BLE 设备地址（扫描后填入）
+  device_address: ""
+  # 服务和特征 UUID（与下位机固件协商后填入）
+  service_uuid: ""
+  char_write_uuid: ""
+  char_notify_uuid: ""
+  # 通信超时（秒）
+  ack_timeout_sec: 5.0
