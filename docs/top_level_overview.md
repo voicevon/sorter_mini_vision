@@ -19,9 +19,9 @@
 ```mermaid
 graph TD
     %% 节点定义
-    Vision["【大脑与中枢】<br>视觉识别子系统 (mini_vision)<br>(Python/PC/树莓派)"]
+    Vision["【大脑与中枢】<br>视觉识别子系统 (flux_sorter_vision)<br>(PC/树莓派/手机)"]
     Hook["【执行机构】<br>机械臂钩子系统 (钩子系统)<br>(ESP32/电机舵机)"]
-    Sorter["【分拣路由】<br>分拣运输控制器 (mini_controller)<br>(ESP32/级联步进电机)"]
+    Sorter["【分拣路由】<br>分拣运输控制器 (flux_sorter_controller)<br>(ESP32/级联步进电机)"]
     
     %% 连接线
     Vision -- "1. 单播连接 (Unicast BLE)<br>发送 HOOK (y_mm, z_mm)" --> Hook
@@ -38,8 +38,28 @@ graph TD
 
 ## 二、 三大子系统职责分工 (Subsystem Responsibilities)
 
-### 2.1 视觉识别子系统 (Vision Subsystem - `mini_vision`)
+### 2.1 视觉识别子系统 (Vision Subsystem - `flux_sorter_vision`)
 - **角色定位**：整个分拣系统的“大脑”与主控制器（BLE Client/Master）。
+- **派生子系统家族设计 (Derived Subsystems & Family Architecture)**：
+  视觉识别系统（`flux_sorter_vision`）在架构上采用了多平台派生的设计思想，针对不同的部署环境、算力限制与相机配置，派生出了一系列各具特色的子系统分支（目前包含 3 个核心物理派生系统，以及 1 个规划中的未来派生系统）：
+  1. **Laptop/PC 派生子系统 (Laptop/PC Derived Subsystem)**：
+     - **运行平台**：通用 PC 或笔记本电脑。
+     - **相机配置**：外接双目立体相机（Binocular Stereo Camera）。
+     - **定位与场景**：用于高精度立体匹配算法的仿真、开发调试与可视化桌面部署，是系统首发版的主力运行环境。
+  2. **Rpi (树莓派) 派生子系统 (Raspberry Pi Derived Subsystem)**：
+     - **运行平台**：树莓派等嵌入式 Linux 设备。
+     - **相机配置**：双目立体相机（Binocular Stereo Camera）。
+     - **定位与场景**：工业现场级生产线部署，体积小，便于集成于机械结构内部，满足全天候自动化作业。
+  3. **Phone (手机) 派生子系统 (Android Phone Derived Subsystem - `flux_sorter_phone`)**：
+     - **运行平台**：原生 Android 手机平台。
+     - **相机配置**：手机内置单摄像头（单目相机 Monocular Camera），借助专用标定板。
+     - **定位与场景**：主打高便携度与极低硬件采购成本，适合手动进行便携式现场物料分级。
+  4. **Apple (苹果机) 派生子系统 (Apple/iOS Derived Subsystem - 规划中)**：
+     - **运行平台**：苹果机/Mac/iOS/iPad 等设备。
+     - **相机配置**：支持单目/双目相机自适应模式。
+     - **定位与场景**：后续面向 Apple 设备的官方移植派生版本。
+  
+  通过将底层核心感知算法与上层多平台运行环境做解耦设计，使得单目相机（如手机端）与双目立体相机（如 PC 和树莓派端）的分支应用可以不一而足地从同一个视觉架构中衍生并维护。
 - **主要职责**：
   1. **图像采集与校正**：通过固定于大地的双目立体相机（Eye-to-Hand 方案）采集传送带工作区的图像对，并进行立体校正（参见 [design_conclusion.md](file:///d:/Software/antigravity/sorter_mini_vision/docs/design_conclusion.md)）。
   2. **三维分割与层级检测**：检测视野内的芦笋或螺丝，计算其世界坐标位姿 `AsparagusPose`，并确定哪个在最上面（层级判断）。
@@ -55,7 +75,7 @@ graph TD
   2. **物料移载**：从堆放平台上将螺丝/芦笋“钩”出，平移放置在运输分拣机入口的落料传感器检测范围内。
   3. **动作状态反馈**：当抓取放入动作完成后，向主控视觉系统发送确认包（`ACK: DONE`），通知视觉系统可进行下一次识别与调度。
 
-### 2.3 分拣运输子系统 (Sorter Subsystem - `sorter_mini_controller`)
+### 2.3 分拣运输子系统 (Sorter Subsystem - `flux_sorter_controller`)
 - **角色定位**：物理运输与路由的“流水线”（BLE Server/Peripheral）。
 - **主要职责**：
   1. **节拍控制 (FSM)**：通过红外落料传感器检测物料落入，自动触发系统进入新节拍。
@@ -92,9 +112,9 @@ graph TD
 
 ---
 
-### 3.2 视觉到分拣运输子系统通讯 (Vision ➔ `sorter_mini_controller`)
+### 3.2 视觉到分拣运输子系统通讯 (Vision ➔ `flux_sorter_controller`)
 视觉识别系统连接分拣运输控制器对应的 BLE 服务，通过写特定的特征值进行数据同步和命令控制。
-详细的固件端实现结构见 [BleManager.cpp](file:///d:/Software/antigravity/sorter_mini_controller/src/BleManager.cpp)。
+详细的固件端实现结构见 [BleManager.cpp](file:///d:/Software/antigravity/flux_sorter_controller/src/BleManager.cpp)。
 
 #### 3.2.1 特征定义与 UUID 规划
 分拣服务包含以下四个特征：
@@ -109,12 +129,12 @@ graph TD
 #### 3.2.2 目标物分拣写入流程
 视觉系统完成计算后，直接向 `Target ID` 特征写入对应槽位数值。
 - **发送形式**：单字节数据，例如发送二进制值 `0x03` 或 ASCII 字符 `'3'` 代表分拣目标槽位为 **3号槽位**。
-- **固件队列机制**：分拣控制器会将接收到的 Target ID 暂存在内部的 `InputQueue`（参见 [InputQueue.h](file:///d:/Software/antigravity/sorter_mini_controller/src/InputQueue.h)），当物料触发落料传感器时，流水线 `_pipeline[0]` 会自动出队并填入对应的 Target ID。
+- **固件队列机制**：分拣控制器会将接收到的 Target ID 暂存在内部的 `InputQueue`（参见 [InputQueue.h](file:///d:/Software/antigravity/flux_sorter_controller/src/InputQueue.h)），当物料触发落料传感器时，流水线 `_pipeline[0]` 会自动出队并填入对应的 Target ID。
 
 #### 3.2.3 系统硬指令映射
 向 `Command` 特征中写入对应的单字节十六进制指令，可直接执行如下动作：
 - `0x01` (Clear Error)：复位报错挂起状态，清除控制器警报。
-- `0x02` (Trigger Homing)：强制触发 8 个级联步进电机做全局自动寻零（Homing，参见 [HomingController.cpp](file:///d:/Software/antigravity/sorter_mini_controller/src/HomingController.cpp)）。
+- `0x02` (Trigger Homing)：强制触发 8 个级联步进电机做全局自动寻零（Homing，参见 [HomingController.cpp](file:///d:/Software/antigravity/flux_sorter_controller/src/HomingController.cpp)）。
 - `0x03` (Identify Blink)：触发板载 LED（GPIO 2）进行为期 4 秒的 10Hz 高频闪烁，用于物理确定与多台设备配对时的物理对应位置。
 
 ---
@@ -126,9 +146,9 @@ graph TD
 ```mermaid
 sequenceDiagram
     autonumber
-    participant V as 视觉识别系统 (mini_vision)
+    participant V as 视觉识别系统 (flux_sorter_vision)
     participant H as 钩子系统 (机械臂)
-    participant S as 分拣控制器 (mini_controller)
+    participant S as 分拣控制器 (flux_sorter_controller)
     
     Note over V: 启动双目相机拍照
     V->>V: 识别物料位姿 (Y_hook, Z_hook)<br/>检测尺寸并分类，确定 Target ID (例如 3)

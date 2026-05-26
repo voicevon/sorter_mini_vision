@@ -23,7 +23,7 @@
 ## 模块划分
 
 ```
-sorter_mini_vision/
+flux_sorter_vision/
 ├── config.yaml                  # 全局配置（相机参数、检测阈值）
 ├── main.py                      # 主程序入口，启动4个线程
 │
